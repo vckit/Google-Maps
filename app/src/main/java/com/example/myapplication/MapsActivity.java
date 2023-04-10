@@ -1,15 +1,13 @@
 package com.example.myapplication;
-import android.Manifest;
-
-import android.content.Context;
-import android.content.pm.PackageManager;
-import android.hardware.fingerprint.FingerprintManager;
+import androidx.biometric.BiometricManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.os.Bundle;
 import android.widget.TextView;
 
-import androidx.core.app.ActivityCompat;
+import androidx.annotation.NonNull;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.FragmentActivity;
 
 import com.google.android.gms.maps.GoogleMap;
@@ -20,6 +18,7 @@ import com.google.android.gms.maps.model.LatLng;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.Executor;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback {
 
@@ -29,31 +28,33 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Проверяем, поддерживается ли устройство сканер отпечатков пальцев.
-        FingerprintManager fingerprintManager = (FingerprintManager) getSystemService(Context.FINGERPRINT_SERVICE);
-        if (fingerprintManager.isHardwareDetected()) {
+        BiometricManager biometricManager = BiometricManager.from(this);
+        if (biometricManager.canAuthenticate() == BiometricManager.BIOMETRIC_SUCCESS) {
+            BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Аутентификация")
+                    .setDescription("Пожалуйста, аутентифицируйтесь с помощью биометрии")
+                    .setNegativeButtonText("Отмена")
+                    .build();
 
-            // Проверяем, имеет ли ваше приложение разрешение на использование сканера отпечатков пальцев.
-            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.USE_FINGERPRINT) == PackageManager.PERMISSION_GRANTED) {
-
-                // Аутентифицируем пользователя через сканер отпечатков пальцев.
-                fingerprintManager.authenticate(null, null, 0, new FingerprintManager.AuthenticationCallback() {
-                    @Override
-                    public void onAuthenticationSucceeded(FingerprintManager.AuthenticationResult result) {
-                        super.onAuthenticationSucceeded(result);
-
-                        // Открываем карту, если аутентификация прошла успешно.
+            Executor executor = ContextCompat.getMainExecutor(this);
+            BiometricPrompt biometricPrompt = new BiometricPrompt(this, executor, new BiometricPrompt.AuthenticationCallback() {
+                @Override
+                public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
+                    super.onAuthenticationSucceeded(result);
+                    runOnUiThread(() -> {
                         setContentView(R.layout.activity_maps);
 
-                        // Получаем объект SupportMapFragment и уведомляем о том, что карта готова для использования.
                         SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
                                 .findFragmentById(R.id.map);
                         mapFragment.getMapAsync(MapsActivity.this);
-                    }
-                }, null);
-            }
+                    });
+                }
+            });
+
+            biometricPrompt.authenticate(promptInfo);
         }
     }
+
 
     /**
      * Вызывается после того, как карта готова для использования.
